@@ -145,6 +145,50 @@ jobs:
         run: bash "${RUNNER_TEMP}/gh-aw/actions/validate_multi_secret.sh" COPILOT_GITHUB_TOKEN 'GitHub Copilot CLI' https://github.github.com/gh-aw/reference/engines/#github-copilot-default
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+      - name: Validate Copilot API access
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          COPILOT_MODEL: ${{ vars.GH_AW_MODEL_AGENT_COPILOT || 'claude-sonnet-4.6' }}
+          COPILOT_MODELS_JSON: ${{ runner.temp }}/gh-aw/copilot-models.json
+        run: |
+          set -euo pipefail
+          HTTP_STATUS="$(curl --silent --show-error --location --output "${COPILOT_MODELS_JSON}" --write-out "%{http_code}" \
+            --header "Authorization: Bearer ${COPILOT_GITHUB_TOKEN}" \
+            --header "Accept: application/json" \
+            "https://api.githubcopilot.com/models" || echo "000")"
+          if [ "${HTTP_STATUS}" = "401" ] || [ "${HTTP_STATUS}" = "403" ]; then
+            echo "::error::COPILOT_GITHUB_TOKEN cannot authenticate to the Copilot provider (HTTP ${HTTP_STATUS}). Update secrets.COPILOT_GITHUB_TOKEN with a valid token that has Copilot access."
+            {
+              echo "### Copilot authentication failed"
+              echo ""
+              echo "- The preflight call to \`https://api.githubcopilot.com/models\` returned **HTTP ${HTTP_STATUS}**."
+              echo "- Update \`secrets.COPILOT_GITHUB_TOKEN\` with a valid Copilot-enabled token."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          if [ "${HTTP_STATUS}" != "200" ]; then
+            echo "::warning::Copilot auth preflight returned HTTP ${HTTP_STATUS}; continuing with workflow execution."
+            exit 0
+          fi
+          python - <<'PY'
+          import json
+          import os
+          import sys
+          model = os.environ["COPILOT_MODEL"]
+          path = os.environ["COPILOT_MODELS_JSON"]
+          with open(path, "r", encoding="utf-8") as fh:
+            payload = json.load(fh)
+          available = {item.get("id") for item in payload.get("data", []) if item.get("id")}
+          if model in available:
+            print(f"Copilot model '{model}' is available.")
+            sys.exit(0)
+          print(f"::error::Configured COPILOT_MODEL '{model}' is not available for this token. Set vars.GH_AW_MODEL_AGENT_COPILOT to an enabled model or update token entitlements.")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+            summary.write("### Copilot model entitlement check failed\n\n")
+            summary.write(f"- Configured model `{model}` was not returned by `https://api.githubcopilot.com/models`.\n")
+            summary.write("- Set `vars.GH_AW_MODEL_AGENT_COPILOT` to an available model or update token entitlements.\n")
+          sys.exit(1)
+          PY
       - name: Checkout .github and .agents folders
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -343,6 +387,7 @@ jobs:
             /tmp/gh-aw/base
             /tmp/gh-aw/.github/agents
           if-no-files-found: ignore
+
           retention-days: 1
 
   agent:
@@ -1440,4 +1485,3 @@ jobs:
             /tmp/gh-aw/safe-output-items.jsonl
             /tmp/gh-aw/temporary-id-map.json
           if-no-files-found: ignore
-
