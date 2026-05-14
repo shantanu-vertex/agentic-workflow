@@ -1,32 +1,37 @@
 ---
-description: Generate Structurizr architecture views (System Context, Container, Deployment) based on explicit user confirmations.
+description: Generate Structurizr architecture diagram views via the Structurizr plugin with interrupt-and-resume confirmation flow.
 on:
   roles: [admin, maintainer, write]
   workflow_dispatch:
     inputs:
-      confirm_system_context:
-        description: "Generate System Context view"
-        type: boolean
-        required: true
-        default: false
-      confirm_container_view:
-        description: "Generate Container view"
-        type: boolean
-        required: true
-        default: false
-      confirm_deployment_view:
-        description: "Generate Deployment view"
-        type: boolean
-        required: true
-        default: false
       architecture_scope:
         description: "System or product name for the generated views"
         type: string
         required: true
+      run_mode:
+        description: "start or resume"
+        type: choice
+        required: true
+        options: [start, resume]
+        default: start
+      confirmation_ref:
+        description: "Reference ID from the previous confirmation request (required for resume)"
+        type: string
+        required: false
+      confirmation_payload:
+        description: "User confirmations as JSON or key=value pairs for resume"
+        type: string
+        required: false
 permissions: read-all
 tools:
   github:
     toolsets: [default]
+  web-fetch:
+  cache-memory: true
+network:
+  allowed:
+    - defaults
+    - vertexinc.atlassian.net
 safe-outputs:
   create-pull-request:
     max: 1
@@ -41,32 +46,53 @@ You are an AI architecture assistant for this repository.
 
 ## Goal
 
-Generate only the Structurizr views that the user explicitly confirmed in workflow inputs.
+Use the Structurizr plugin files from `sandbox/plugins/structurizr` to generate architecture diagram views with a confirmation-driven, interrupt-and-resume execution flow.
 
 ## Inputs
 
-- `confirm_system_context`: `${{ github.event.inputs.confirm_system_context }}`
-- `confirm_container_view`: `${{ github.event.inputs.confirm_container_view }}`
-- `confirm_deployment_view`: `${{ github.event.inputs.confirm_deployment_view }}`
 - `architecture_scope`: `${{ github.event.inputs.architecture_scope }}`
+- `run_mode`: `${{ github.event.inputs.run_mode }}`
+- `confirmation_ref`: `${{ github.event.inputs.confirmation_ref }}`
+- `confirmation_payload`: `${{ github.event.inputs.confirmation_payload }}`
 
-Treat a value as confirmed only when it is `true`.
+## Plugin and Skills Discovery
+
+1. Load the Structurizr plugin definition only from:
+  - `sandbox/plugins/structurizr/plugin.json`
+2. Read plugin docs only from:
+  - `sandbox/plugins/structurizr/plugin.md`
+3. Find confirmation skill files only from:
+  - `sandbox/plugins/structurizr/skills/**/SKILL.md`
+4. Extract confirmation questions from these skill files and treat them as required confirmation gates.
+5. Do not use any globally installed Structurizr plugin or plugin files outside `sandbox/plugins/structurizr`.
+
+If required plugin files are missing under `sandbox/plugins/structurizr`, use `add-comment` to report what path was searched, then call `noop`.
 
 ## Required Behavior
 
 1. Read existing repository files before creating anything.
-2. Create or update architecture definitions under `.github/workflows/` using Structurizr DSL.
-3. Only generate confirmed views:
-   - If `confirm_system_context` is `true`, generate/update a System Context view.
-   - If `confirm_container_view` is `true`, generate/update a Container view.
-   - If `confirm_deployment_view` is `true`, generate/update a Deployment view.
-4. Do not generate an unconfirmed view.
-5. Keep generated DSL focused on `${{ github.event.inputs.architecture_scope }}`.
-6. If no view is confirmed, call `noop` with a message that no generation was requested.
+2. Create a C4 diagram from this Confluence page:
+  - `https://vertexinc.atlassian.net/wiki/spaces/CSA/pages/6777536649/Technical+Design+Oracle+Accelerator+2+System+Metadata`
+  - Use `web-fetch` to retrieve the page content and extract metadata required by the Structurizr plugin before generating any DSL.
+3. Use only the Structurizr plugin commands and metadata mapping defined in `sandbox/plugins/structurizr` to prepare generation for `${{ github.event.inputs.architecture_scope }}` using the extracted Confluence metadata.
+4. Enforce confirmation gates from skill files and plugin prompts.
+5. Implement interrupt-and-resume flow:
+  - If `run_mode` is `start` and confirmations are still required, do NOT generate final outputs.
+  - Persist pending state in `/tmp/gh-aw/cache-memory/structurizr-pending.json` with:
+    - `confirmation_ref` (generate one if absent)
+    - list of required questions
+    - plugin context needed to resume
+  - Use `add-comment` to publish required confirmation questions and exact resume instructions.
+  - Call `noop` after posting the request so the run ends cleanly.
+6. On `run_mode=resume`:
+  - Load pending state from cache-memory.
+  - Match `confirmation_ref` and parse `confirmation_payload`.
+  - Resume the Structurizr plugin flow and continue generation only for explicitly confirmed items.
+7. Never generate an unconfirmed view.
 
 ## Output Layout
 
-Use this structure (create missing files as needed):
+Generate/update DSL files in `.github/workflows/`:
 
 - `.github/workflows/workspace.dsl`
 - `.github/workflows/system-context.dsl` (only if confirmed)
@@ -81,24 +107,32 @@ If an existing consolidated DSL structure is already present, update that struct
 - Prefer incremental edits over full rewrites.
 - Preserve existing manually-authored descriptions where possible.
 - Include short, clear descriptions for relationships.
+- After generating DSL, run Structurizr plugin export/render commands defined in `sandbox/plugins/structurizr/plugin.md` to validate views are renderable.
 
 ## Completion
 
 1. If files changed, create a pull request via `create-pull-request`:
    - Title prefix: `architecture:`
-   - Summarize which views were generated from confirmed inputs.
+  - Summarize which views were generated and which confirmations were used.
 2. Add one summary comment via `add-comment` describing:
-   - confirmed inputs
+  - confirmation ref
+  - confirmed answers
    - generated files
-   - skipped (unconfirmed) views
+  - skipped (unconfirmed) views
 3. If nothing changed after analysis, call `noop` with an explanation.
 
 ## Usage
 
-Run this workflow manually and set confirmations:
+Start run:
 
-- `confirm_system_context=true` to generate System Context
-- `confirm_container_view=true` to generate Container
-- `confirm_deployment_view=true` to generate Deployment
+- `run_mode=start`
+- `architecture_scope=<name>`
 
-Leave any confirmation as `false` to skip that view.
+Resume run after you answer confirmation questions:
+
+- `run_mode=resume`
+- `architecture_scope=<same name>`
+- `confirmation_ref=<id from comment>`
+- `confirmation_payload=<answers in JSON or key=value list>`
+
+Only explicitly confirmed views are generated.

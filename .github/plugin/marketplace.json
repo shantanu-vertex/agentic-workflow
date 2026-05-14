@@ -1,0 +1,19 @@
+{
+  "name": "architecture-ai-registry",
+  "owner": {
+    "name": "Vertex Inc",
+    "email": "sanjeev.giri@vertexinc.com"
+  },
+  "metadata": {
+    "description": "Architecture AI skills and plugins for Vertex Inc engineering teams",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "structurizr",
+      "description": "Generate Structurizr C4 architecture diagrams from Confluence pages or direct descriptions. Produces validated DSL for system context and container diagrams.",
+      "version": "0.1.0",
+      "source": "sandbox/plugins/structurizr"
+    }
+  ]
+}

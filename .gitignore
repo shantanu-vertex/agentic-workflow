@@ -1,0 +1,21 @@
+# VS Code files and folders
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
+# --- IntelliJ IDEA ---
+*.iml
+.idea
+
+# Logs
+*.log
+
+# Structurizr
+.structurizr
+
+# Generated
+generated*
+

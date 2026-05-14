@@ -1,0 +1,21 @@
+{
+  "name": "structurizr",
+  "version": "0.1.0",
+  "description": "Generate Structurizr C4 architecture diagrams from Confluence pages or direct descriptions. Produces validated DSL for system context, container, and deployment diagrams.",
+  "author": "sanjeev.giri@vertexinc.com",
+  "skills": [
+    "skills/system-context",
+    "skills/containers",
+    "skills/deployment",
+    "skills/dsl"
+  ],
+  "dependencies": {
+    "plugins": [
+      {
+        "name": "vertex-atlassian-mcp",
+        "source": "vertex-atlassian-mcp@vertex-ai-plugins",
+        "reason": "Required for fetching Confluence page content as architecture input. The plugin degrades gracefully to direct text input if not installed."
+      }
+    ]
+  }
+}
