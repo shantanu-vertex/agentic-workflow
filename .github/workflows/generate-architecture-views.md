@@ -55,7 +55,7 @@ Treat a value as confirmed only when it is `true`.
 ## Required Behavior
 
 1. Read existing repository files before creating anything.
-2. Create or update architecture definitions under `architecture/` using Structurizr DSL.
+2. Create or update architecture definitions under `.github/workflows/` using Structurizr DSL.
 3. Only generate confirmed views:
    - If `confirm_system_context` is `true`, generate/update a System Context view.
    - If `confirm_container_view` is `true`, generate/update a Container view.
@@ -68,10 +68,10 @@ Treat a value as confirmed only when it is `true`.
 
 Use this structure (create missing files as needed):
 
-- `architecture/workspace.dsl`
-- `architecture/views/system-context.dsl` (only if confirmed)
-- `architecture/views/container.dsl` (only if confirmed)
-- `architecture/views/deployment.dsl` (only if confirmed)
+- `.github/workflows/workspace.dsl`
+- `.github/workflows/system-context.dsl` (only if confirmed)
+- `.github/workflows/container.dsl` (only if confirmed)
+- `.github/workflows/deployment.dsl` (only if confirmed)
 
 If an existing consolidated DSL structure is already present, update that structure instead of duplicating architecture models.
 
